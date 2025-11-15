@@ -22,7 +22,7 @@ def calculate_centers(data, U, m, n_clusters):
     for j in range(n_clusters):
         u_m = U[:, j] ** m
         u_m_expanded = u_m[:, np.newaxis] 
-        
+     
         numerator = np.sum(u_m_expanded * data, axis=0)
         denominator = np.sum(u_m)
         
@@ -44,7 +44,7 @@ def update_membership(data, centers, m):
     distances[distances == 0] = 1e-9 
     
     power_val = 2.0 / (m - 1.0)
-
+    
     inv_dist_powered = (1.0 / distances) ** power_val
     sum_inv_dist = np.sum(inv_dist_powered, axis=1, keepdims=True)
     
@@ -53,6 +53,9 @@ def update_membership(data, centers, m):
     return U_new
 
 def fuzzy_c_means(data, n_clusters, m, epsilon):
+    """
+    Main FCM algorithm loop.
+    """
     n_samples = data.shape[0]
     U = initialize_membership(n_samples, n_clusters)
     
@@ -60,11 +63,8 @@ def fuzzy_c_means(data, n_clusters, m, epsilon):
     while True:
         iteration += 1
         U_old = U.copy()
-        
         centers = calculate_centers(data, U, m, n_clusters)
-        
         U = update_membership(data, centers, m)
-        
         max_change = np.max(np.abs(U - U_old))
         if max_change < epsilon:
             break
@@ -72,17 +72,20 @@ def fuzzy_c_means(data, n_clusters, m, epsilon):
     return U, centers, iteration
 
 
-# --- Question 2: Applying FCM 
-
-# --- Parameters for the color image 
-m = 2.0      
-epsilon = 0.01  
-image_path = 'milky-way.jpg' 
-cluster_list = [3, 4]        
-cluster_heatmap_to_show = 0  
+#Question 2: Applying FCM to Grayscale Image Segmentation 
+# --- Parameters ---
+m = 2.0        
+epsilon = 0.01   
+image_path = 'milky-way-nvg.jpg' 
+cluster_list = [2]               
+cluster_heatmap_to_show = 0    
 
 try:
     img = plt.imread(image_path)
+    
+    if img.ndim == 3:
+        img = img.mean(axis=2) 
+        
     if img.dtype == np.uint8:
         img = img.astype(np.float32) / 255.0
         
@@ -91,7 +94,7 @@ except FileNotFoundError:
     exit()
 
 original_shape = img.shape
-data = img.reshape(-1, original_shape[-1]) 
+data = img.reshape(-1, 1) 
 print(f"Image loaded: {original_shape}, reshaped to {data.shape} for clustering.")
 
 for n_clusters in cluster_list:
@@ -99,41 +102,42 @@ for n_clusters in cluster_list:
     print(f"\n--- Applying FCM for K={n_clusters} ---")
     print(f"Parameters: m={m}, epsilon={epsilon}")
 
-    # Run FCM
     U, centers, iterations = fuzzy_c_means(data, n_clusters, m, epsilon)
 
     print(f"Convergence reached in {iterations} iterations.")
-    print(f"Final cluster centers (RGB values): \n{centers}")
+    print(f"Final cluster centers (pixel intensity): \n{centers.flatten()}")
 
     labels = np.argmax(U, axis=1)
-
+    
     segmented_data = centers[labels]
-    segmented_image = segmented_data.reshape(original_shape)
+    segmented_image = segmented_data.reshape(original_shape) 
 
-    membership_heatmap = U[:, cluster_heatmap_to_show].reshape(original_shape[:-1])
-
+    sorted_indices = np.argsort(centers.flatten())
+    heatmap_cluster_index = sorted_indices[0] 
+    
+    membership_heatmap = U[:, heatmap_cluster_index].reshape(original_shape)
 
     plt.figure(figsize=(18, 6))
 
     plt.subplot(1, 3, 1)
-    plt.imshow(img)
-    plt.title('Original Color Image')
+    plt.imshow(img, cmap='gray')
+    plt.title('Original Grayscale Image')
     plt.axis('off')
 
     plt.subplot(1, 3, 2)
-    plt.imshow(np.clip(segmented_image, 0, 1))
+    plt.imshow(segmented_image, cmap='gray') 
     plt.title(f'Hard Segmentation (K={n_clusters})')
     plt.axis('off')
 
     plt.subplot(1, 3, 3)
     im = plt.imshow(membership_heatmap, cmap='hot')
-    plt.title(f'Fuzzy Heatmap (Membership to Cluster)')
+    plt.title(f'Fuzzy Heatmap (Membership to Dark Cluster)')
     plt.axis('off')
     plt.colorbar(im, fraction=0.046, pad=0.04) 
 
     plt.tight_layout()
     
-    save_filename = f'fcm_color_segmentation_K{n_clusters}.png'
+    save_filename = f'fcm_grayscale_segmentation_K{n_clusters}.png'
     plt.savefig(save_filename)
     print(f"Saved visualization to '{save_filename}'")
 
